@@ -15,12 +15,30 @@ static volatile bool hal2PendingSel = false;
 static volatile bool hal2PendingPrev = false;
 static volatile bool hal2PendingEsc = false;
 
+#if defined(STICKS3_BTN_REMAP)
+// StickS3 layout: btn1 (front/blue) click = Select; btn2 (top) click = Next, double click = Prev.
+// Next is delayed so a double click does not also move forward.
+static volatile unsigned long hal2NextAt = 0;
+static void hal2OnBtn1Click(void *, void *) { hal2PendingSel = true; }
+static void hal2OnBtn1Long(void *, void *) { hal2PendingSel = true; }
+static void hal2OnBtn1Double(void *, void *) { hal2PendingSel = true; }
+static void hal2OnBtn2Click(void *, void *) { hal2NextAt = launcherMillis() | 1; }
+static void hal2OnBtn2Long(void *, void *) {
+    hal2NextAt = 0;
+    hal2PendingEsc = true;
+}
+static void hal2OnBtn2Double(void *, void *) {
+    hal2NextAt = 0;
+    hal2PendingPrev = true;
+}
+#else
 static void hal2OnBtn1Click(void *, void *) { hal2PendingNext = true; }
 static void hal2OnBtn1Long(void *, void *) { hal2PendingSel = true; }
 static void hal2OnBtn1Double(void *, void *) { hal2PendingSel = true; }
 static void hal2OnBtn2Click(void *, void *) { hal2PendingPrev = true; }
 static void hal2OnBtn2Long(void *, void *) { hal2PendingEsc = true; }
 static void hal2OnBtn2Double(void *, void *) { hal2PendingEsc = true; }
+#endif
 #endif
 
 static void configurePin(int8_t pin, bool pullup) {
@@ -81,6 +99,12 @@ void hal_buttons_poll_2() {
 #if defined(BUTTONS_IDF_COMPONENT)
     static unsigned long tm = 0;
     static bool btnPressed = false;
+#if defined(STICKS3_BTN_REMAP)
+    if (hal2NextAt && launcherMillis() - hal2NextAt > 350) {
+        hal2NextAt = 0;
+        hal2PendingNext = true;
+    }
+#endif
     if (hal2PendingNext || hal2PendingPrev || hal2PendingSel || hal2PendingEsc) btnPressed = true;
 
     if (launcherMillis() - tm > 200 || LongPress) {
